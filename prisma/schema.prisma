@@ -1,0 +1,480 @@
+// Prisma Schema for MayStudio
+// PostgreSQL (Supabase-compatible): DATABASE_URL = pooled runtime, DIRECT_URL = direct (schema sync / migrations)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  FREE
+  PREMIUM
+  SUPERADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  email              String             @unique
+  name               String
+  passwordHash       String
+  role               Role               @default(FREE)
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  avatarUrl          String?
+  title              String?
+  premiumExpiresAt   DateTime?
+  currentPlanId      String?
+  currentPlanName    String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  deletedAt          DateTime?
+
+  // Relations
+  datasets      Dataset[]
+  refreshTokens RefreshToken[]
+  aiUsageLogs   AIUsageLog[]
+
+  @@map("users")
+}
+
+model AIUsageLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature   String   // "cv_match"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([feature])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
+}
+
+model Dataset {
+  id         String      @id @default(uuid())
+  userId     String
+  fileName   String
+  fileSize   Int
+  rowCount   Int
+  columns    Json
+  uploadedAt DateTime    @default(now())
+  deletedAt  DateTime?
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dashboards Dashboard[]
+
+  @@index([userId])
+  @@map("datasets")
+}
+
+model DashboardTemplate {
+  id           String      @id @default(uuid())
+  name         String
+  thumbnail    String
+  isPremium    Boolean     @default(false)
+  layoutConfig Json
+  deletedAt    DateTime?
+
+  // Relations
+  dashboards   Dashboard[]
+
+  @@map("dashboard_templates")
+}
+
+model Dashboard {
+  id            String             @id @default(uuid())
+  datasetId     String
+  templateId    String?
+  title         String
+  config        Json
+  isPublicShare Boolean            @default(false)
+  shareToken    String             @unique @default(uuid())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  dataset       Dataset            @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  template      DashboardTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([datasetId])
+  @@index([templateId])
+  @@index([shareToken])
+  @@map("dashboards")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model EditableContent {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("editable_contents")
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  adminEmail String
+  action     String
+  targetType String
+  targetId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_audit_logs")
+}
+
+model Formula {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  category        String
+  shortDesc       String
+  fullExplanation String    @db.Text
+  syntaxExample   String
+  practiceData    Json
+  order           Int       @default(0)
+  isPublished     Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([slug])
+  @@index([category])
+  @@index([order])
+  @@map("formulas")
+}
+
+model AdSlot {
+  id          String    @id @default(cuid())
+  placement   String
+  type        String
+  imageUrl    String?
+  linkUrl     String?
+  scriptCode  String?   @db.Text
+  isActive    Boolean   @default(true)
+  updatedAt   DateTime  @updatedAt
+  updatedBy   String?
+  deletedAt   DateTime?
+
+  @@index([placement])
+  @@map("ad_slots")
+}
+
+enum BookingStatus {
+  SCHEDULED
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum InquiryStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  CLOSED
+}
+
+model AdPlacement {
+  id               String       @id @default(cuid())
+  key              String       @unique
+  label            String
+  description      String?
+  dimensions       String
+  previewImageUrl  String?
+  pricePerWeek     Decimal      @db.Decimal(12, 2)
+  pricePerMonth    Decimal      @db.Decimal(12, 2)
+  hiddenForPremium Boolean      @default(true)
+  isAvailable      Boolean      @default(true)
+  bookings         AdBooking[]
+  inquiries        AdInquiry[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  @@map("ad_placements")
+}
+
+model AdBooking {
+  id                String        @id @default(cuid())
+  placementId       String
+  placement         AdPlacement   @relation(fields: [placementId], references: [id])
+  advertiserName    String
+  advertiserContact String?
+  type              String
+  imageUrl          String?
+  linkUrl           String?
+  scriptCode        String?       @db.Text
+  startDate         DateTime
+  endDate           DateTime
+  pricePaid         Decimal       @db.Decimal(12, 2)
+  status            BookingStatus @default(SCHEDULED)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  deletedAt         DateTime?
+
+  @@index([placementId])
+  @@map("ad_bookings")
+}
+
+model AdInquiry {
+  id              String        @id @default(cuid())
+  placementId     String
+  placement       AdPlacement   @relation(fields: [placementId], references: [id])
+  companyName     String
+  contactName     String
+  email           String
+  whatsapp        String
+  message         String?
+  status          InquiryStatus @default(NEW)
+  createdAt       DateTime      @default(now())
+  deletedAt       DateTime?
+
+  @@index([placementId])
+  @@index([status])
+  @@map("ad_inquiries")
+}
+
+model FormTemplate {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  category    String
+  title       String
+  description String
+  fields      Json
+  order       Int       @default(0)
+  isPublished Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([slug])
+  @@index([category])
+  @@index([order])
+  @@map("form_templates")
+}
+
+model BlogPost {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  excerpt         String
+  contentMarkdown String    @db.Text
+  coverImageUrl   String?
+  coverImageCredit String?
+  category        String
+  tags            String[]
+  authorName      String    @default("Tim MayStudio")
+  status          String    @default("DRAFT")
+  publishedAt     DateTime?
+  metaTitle       String?
+  metaDescription String?
+  viewCount       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([slug])
+  @@index([category])
+  @@index([status])
+  @@index([publishedAt])
+  @@map("blog_posts")
+}
+
+model SiteIntegration {
+  id                  String    @id @default(cuid())
+  gtmContainerId      String?   // e.g. "GTM-XXXXXXX"
+  ga4MeasurementId    String?   // e.g. "G-XXXXXXXXXX"
+  gscVerificationCode String?   // Google Search Console meta tag content value
+  customHeadScript    String?   @db.Text // optional escape hatch for future tracking tools
+  updatedAt           DateTime  @updatedAt
+  updatedBy           String?
+
+  @@map("site_integrations")
+}
+
+model GlobalTrialMode {
+  id          String    @id @default(cuid())
+  isActive    Boolean   @default(false)
+  label       String?   // admin reference note, e.g. "Promo Kemerdekaan 2026"
+  startAt     DateTime?
+  endAt       DateTime?
+  updatedBy   String?
+  updatedAt   DateTime  @updatedAt
+
+  @@map("global_trial_modes")
+}
+
+model Plan {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  name           String
+  tagline        String?
+  badge          String?
+  accentColor    String        @default("#00685f")
+  features            Json
+  dashboardLimit      Int?
+  templateAccessLimit Int?
+  isFree              Boolean       @default(false)
+  isActive       Boolean       @default(true)
+  order          Int           @default(0)
+  pricingOptions PlanPricing[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  @@index([slug])
+  @@index([order])
+  @@index([isActive])
+  @@map("plans")
+}
+
+model PlanPricing {
+  id            String    @id @default(cuid())
+  planId        String
+  plan          Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  durationLabel String
+  durationDays  Int
+  normalPrice   Decimal   @db.Decimal(12, 2)
+  discountPrice Decimal?  @db.Decimal(12, 2)
+  isBestValue   Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  order         Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  @@index([planId])
+  @@index([order])
+  @@index([isActive])
+  @@map("plan_pricings")
+}
+
+model Transaction {
+  id            String    @id @default(cuid())
+  reference     String    @unique
+  merchantRef   String    @unique
+  userId        String?
+  userEmail     String
+  userName      String?
+  amount        Decimal   @db.Decimal(12, 2)
+  currency      String    @default("IDR")
+  paymentMethod String
+  status        String    @default("UNPAID")
+  failureReason String?
+  notes         String?
+  planId        String?
+  planPricingId String?
+  planName      String?
+  durationDays  Int?
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  @@index([userId])
+  @@index([userEmail])
+  @@index([status])
+  @@index([merchantRef])
+  @@map("transactions")
+}
+
+model PaymentGatewayConfig {
+  id              String    @id @default(cuid())
+  gateway         String    @unique // "tripay" | "midtrans" | "manual_transfer"
+  isActive        Boolean   @default(false)
+  isDefault       Boolean   @default(false) // which gateway is used for new checkouts when multiple are active
+  displayName     String    // e.g. "Tripay", "Transfer Bank Manual"
+  lastTestedAt    DateTime?
+  lastTestResult  String?   // "SUCCESS" | "FAILED"
+  lastTestMessage String?
+  updatedBy       String?
+  updatedAt       DateTime  @updatedAt
+
+  @@map("payment_gateway_configs")
+}
+
+model ManualPaymentAccount {
+  id            String    @id @default(cuid())
+  bankName      String    // e.g. "BCA", "Mandiri"
+  accountNumber String
+  accountHolder String
+  isActive      Boolean   @default(true)
+  order         Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  @@index([order])
+  @@index([isActive])
+  @@map("manual_payment_accounts")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  scope     String    // "USER" (targeted to one user) | "BROADCAST" (all users)
+  userId    String?   // set when scope = USER, null when BROADCAST
+  type      String    // "TRANSACTION_SUCCESS" | "TRANSACTION_FAILED" | 
+                      // "PREMIUM_EXPIRING_SOON" | "PREMIUM_EXPIRED" | 
+                      // "CONTENT_UPDATE" | "FEATURE_UPDATE" | "GENERAL"
+  title     String
+  message   String
+  link      String?   // optional in-app path to navigate to on click
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  reads     NotificationRead[]
+
+  @@index([scope])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model NotificationRead {
+  id             String       @id @default(cuid())
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId         String
+  readAt         DateTime     @default(now())
+
+  @@unique([notificationId, userId])
+  @@index([userId])
+  @@index([notificationId])
+  @@map("notification_reads")
+}
+

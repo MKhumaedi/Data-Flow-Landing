@@ -1,0 +1,56 @@
+{
+  "name": "maystudio-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MayStudio backend REST API (Express + Prisma + PostgreSQL)",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false server.ts",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "audit:db": "tsx scripts/audit_database_integrity.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@prisma/client": "5.22.0",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "hyperformula": "^3.4.0",
+    "jsonwebtoken": "^9.0.3",
+    "jszip": "^3.10.1",
+    "multer": "^2.2.0",
+    "pg": "^8.23.0",
+    "sharp": "^0.35.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.14.0",
+    "@types/pg": "^8.23.1",
+    "prisma": "5.22.0",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2"
+  }
+}
